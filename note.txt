@@ -1,0 +1,40 @@
+- Projections   -- project on and other select from for analytical 
+ - Event Handlers  -- this.before, this.after, this.on
+ - Business Rules --    
+ - Authorization
+    -- mocked - with pre-defined mock users during development
+    -- jwt  - production
+ - Error Handling
+- Domain Modeling
+ - Service Implementation
+ - Security Setup
+ - Integration
+ - Testing ( optional )
+ - Demo
+
+
+association
+composition
+1 to 1
+1 to n
+deep create/insert
+deep fetch
+custom rest API
+actions vs functions
+@requires vs @restrict
+
+
+Simple Habit tracker
+   - simple login and with if there 
+
+   Admin and User for login 
+
+first 2 table
+   - habits
+   - habit log 
+   - User
+
+business logic
+   - completionRate
+      - 
+   - if already tick for day then not again 

@@ -1,63 +1,31 @@
-using { cuid, managed, sap.common.CodeList } from '@sap/cds/common';
-namespace sap.capire.incidents; 
+using { cuid, managed } from '@sap/cds/common';
 
-/**
-* Incidents created by Customers.
-*/
-entity Incidents : cuid, managed {  
-customer     : Association to Customers;
-title        : String  @title : 'Title';
-urgency        : Association to Urgency default 'M';
-status         : Association to Status default 'N';
-conversation  : Composition of many {
-    key ID    : UUID;
-    timestamp : type of managed:createdAt;
-    author    : type of managed:createdBy;
-    message   : String;
-};
+namespace habit;
+
+define entity Users : cuid, managed {
+  userId : String;        // it comes from cds.user.id
+  email  : String;       // use @email here
+  habits : Composition of many Habits
+             on habits.owner = userId;
+  HabitStats : Integer;
+
+  // if want to like if email end with "@gmail.com" >>> then "App-User" and "@asint.net" >>> then "Admin"
 }
 
-/**
-* Customers entitled to create support Incidents.
-*/
-entity Customers : managed { 
-key ID        : String;
-firstName     : String;
-lastName      : String;
-name          : String = trim(firstName ||' '|| lastName);
-email         : EMailAddress;
-phone         : PhoneNumber;
-incidents     : Association to many Incidents on incidents.customer = $self;
-creditCardNo  : String(16) @assert.format: '^[1-9]\d{15}$';
-addresses     : Composition of many Addresses on addresses.customer = $self;
+
+entity Habits : cuid, managed {
+  name     : String not null;
+  descr    : type of name;
+  isActive : Boolean default true;
+  owner    : String;      // cds.user.id
+  logs     : Composition of many HabitLogs on logs.habit = $self;
+  completionRate : Integer @cds.virtual;
+//i can give habit type as well
 }
 
-entity Addresses : cuid, managed {
-customer      : Association to Customers;
-city          : String;
-postCode      : String;
-streetAddress : String;
-}
 
-entity Status : CodeList {
-key code: String enum {
-    new = 'N';
-    assigned = 'A'; 
-    in_process = 'I'; 
-    on_hold = 'H'; 
-    resolved = 'R'; 
-    closed = 'C'; 
-};
-criticality : Integer;
+entity HabitLogs : cuid, managed {
+  habit   : Association to Habits;
+  logDate : Date;
+  status  : String;       // DONE / MISSED
 }
-
-entity Urgency : CodeList {
-key code: String enum {
-    high = 'H';
-    medium = 'M'; 
-    low = 'L'; 
-};
-}
-
-type EMailAddress : String;
-type PhoneNumber : String;
