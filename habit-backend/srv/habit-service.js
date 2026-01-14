@@ -1,105 +1,105 @@
 const cds = require('@sap/cds');
+const { message } = require('@sap/cds/lib/log/cds-error');
+const { INSERT, SELECT } = require('@sap/cds/lib/ql/cds-ql');
 
-module.exports = cds.service.impl(async function () {
-  const { Users, Habits, HabitLogs } = this.entities;
+module.exports = cds.service.impl(function () {
 
-  /**
-   * 1️⃣ First-login user creation
-   * Runs once per request; inserts profile if missing
-   */
-  this.before('*', async (req) => {
-    if (!req.user || !req.user.id) return;
+  const { Habits, HabitLogs } = this.entities;
 
-    const exists = await SELECT.one
-      .from(Users)
-      .where({ userId: req.user.id });
+  const db =  cds.connect.to('db');
 
-    if (!exists) {
-      await INSERT.into(Users).entries({
-        userId: req.user.id,
-        email: req.user.id
-      });
-    }
-  });
 
-  /**
-   * 2️⃣ Action: Mark habit as DONE today
-   */
-  this.on('markDone', async (req) => {
-    return markHabit(req, 'DONE');
-  });
+  this.on('POST', '/',  req => {
+    const { name, descr } = req.data;
 
-  /**
-   * 3️⃣ Action: Mark habit as MISSED today
-   */
-  this.on('markMissed', async (req) => {
-    return markHabit(req, 'MISSED');
-  });
+    if (!name) req.reject(400, 'name is required');
 
-  /**
-   * 4️⃣ Function: Completion rate
-   */
-  // this.on('completionRate', async (req) => {
-  //   const { habitId } = req.data;
+     db.run(
+      INSERT.into(Habits).entries({ name, descr })
+    );
 
-  //   const total = await SELECT.from(HabitLogs)
-  //     .where({ habit_ID: habitId });
+    return { message: 'Habit created' };
+  })
 
-  //   if (total.length === 0) return 0;
 
-  //   const doneCount = total.filter(l => l.status === 'DONE').length;
-  //   return Math.round((doneCount / total.length) * 100);
-  // });
+  this.on('GET', '/' , req => {
+   // return db.run( SELECT.from(Habits))
+   return db.run(`SELECT * FROM habit_Habits`)
+  })
 
-  this.after('READ', 'Habits', async (rows) => {
-  const habits = Array.isArray(rows) ? rows : [rows];
 
-  for (const h of habits) {
-    const logs = await SELECT.from(HabitLogs).where({ habit_ID: h.ID });
-    if (!logs.length) {
-      h.completionRate = 0;
-    } else {
-      const done = logs.filter(l => l.status === 'DONE').length;
-      h.completionRate = Math.round((done / logs.length) * 100);
-    }
+
+
+
+// Update 1
+this.on('PATCH', 'Habits', async req => {
+  const ID = req.data.ID;
+  const name = req.data.name;
+  const descr = req.data.descr;
+
+  if (!ID) {
+    req.reject(400, 'ID is required');
   }
+
+  await UPDATE(Habits)
+    .set({
+      name: name,
+      descr: descr
+    })
+    .where({ ID: ID });
+
+  return { message: 'Habit updated successfully' };
 });
 
 
-  /**
-   * Helper: shared logic for markDone / markMissed
-   */
+
+
+
+// delete
+this.on('DELETE', 'Habits', async req => {
+  const { ID } = req.data;
+
+  if (!ID) req.reject(400, 'ID required');
+
+  await DELETE.from(Habits).where({ ID });
+
+  return { message: 'Habit deleted' };
+});
+
+
+  this.on('markDone', req => markHabit(req, 'DONE'));
+  this.on('markMissed', req => markHabit(req, 'MISSED'));
+
   async function markHabit(req, status) {
     const { habitId } = req.data;
+    if (!habitId) req.reject(400, 'habitId is required');
+
+    const habit = await SELECT.one.from(Habits).where({ ID: habitId });
+    if (!habit) req.reject(404, 'Habit not found');
+
     const today = new Date().toISOString().slice(0, 10);
 
-    // Ensure habit exists and belongs to user
-    const habit = await SELECT.one.from(Habits).where({
-      ID: habitId,
-      owner: req.user.id
-    });
+    const exists = await SELECT.one.from(HabitLogs)
+      .where({ habit_ID: habitId, logDate: today });
 
-    if (!habit) {
-      return req.reject(404, 'Habit not found or not owned by user');
-    }
+    if (exists) req.reject(409, 'Habit already logged today');
 
-    // Prevent duplicate log for today
-    const exists = await SELECT.one.from(HabitLogs).where({
-      habit_ID: habitId,
-      logDate: today
-    });
-
-    if (exists) {
-      return req.reject(409, 'Habit already logged for today');
-    }
-
-    // Create log
     await INSERT.into(HabitLogs).entries({
       habit_ID: habitId,
       logDate: today,
       status
     });
 
-    return { message: `Habit marked as ${status}` };
+    return { status };
   }
+
+  this.on('completionRate', async req => {
+    const logs = await SELECT.from(HabitLogs)
+      .where({ habit_ID: req.data.habitId });
+
+    const done = logs.filter(l => l.status === 'DONE').length;
+    return logs.length ? Math.round(done * 100 / logs.length) : 0;
+  });
+
+
 });
